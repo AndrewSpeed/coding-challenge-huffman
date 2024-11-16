@@ -35,7 +35,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let content = read_file(&cli.filepath)?;
-    let char_frequency = calculate_character_frequency(&content);
+    let _char_frequency = calculate_character_frequency(&content);
 
     Ok(())
 }

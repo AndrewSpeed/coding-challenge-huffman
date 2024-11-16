@@ -1,68 +1,49 @@
-use std::cmp::Ordering;
+trait Node<'a> {
+    type Value;
 
-pub trait HuffBaseNode {
-    fn is_leaf_node(&self) -> bool;
-    fn weight(&self) -> usize;
+    fn left(&self) -> Option<&Self>;
+    fn right(&self) -> Option<&Self>;
+    fn value(&self) -> &Self::Value;
 }
 
-#[derive(PartialEq)]
-struct HuffLeafNode {
-    element: char,
-    weight: usize,
+trait BinaryTree {
+    type Node<'a>: Node<'a>
+    where
+        Self: 'a;
+
+    fn root(&self) -> Option<&Self::Node<'_>>;
 }
 
-impl HuffBaseNode for HuffLeafNode {
-    fn is_leaf_node(&self) -> bool {
-        true
-    }
-
-    fn weight(&self) -> usize {
-        self.weight
-    }
+struct HuffmanTree<'a> {
+    root: Option<<HuffmanTree<'a> as BinaryTree>::Node<'a>>,
 }
 
-struct HuffInternalNode<'a> {
-    weight: usize,
-    left: &'a dyn HuffBaseNode,
-    right: &'a dyn HuffBaseNode,
-}
+impl BinaryTree for HuffmanTree<'_> {
+    type Node<'a> = HuffmanTreeNode<'a> where Self: 'a;
 
-impl HuffBaseNode for HuffInternalNode<'_> {
-    fn is_leaf_node(&self) -> bool {
-        false
-    }
-
-    fn weight(&self) -> usize {
-        self.weight
+    fn root(&self) -> Option<&Self::Node<'_>> {
+        self.root.as_ref()
     }
 }
 
-struct HuffTree<'a> {
-    root: &'a dyn HuffBaseNode,
+struct HuffmanTreeNode<'a> {
+    left: Option<&'a Self>,
+    right: Option<&'a Self>,
+    value: usize,
 }
 
-impl PartialEq for HuffTree<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.root.eq(other.root)
+impl Node<'_> for HuffmanTreeNode<'_> {
+    type Value = usize;
+
+    fn left(&self) -> Option<&Self> {
+        self.left
     }
-}
 
-impl Eq for HuffTree<'_> {}
-
-impl PartialOrd for HuffTree<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+    fn right(&self) -> Option<&Self> {
+        self.right
     }
-}
 
-impl Ord for HuffTree<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        if self.root.weight() < other.root.weight() {
-            Some(Ordering::Less)
-        } else if self.root.weight() == other.root.weight() {
-            Some(Ordering::Equal)
-        } else {
-            Some(Ordering::Greater)
-        }
+    fn value(&self) -> &Self::Value {
+        &self.value
     }
 }
