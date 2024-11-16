@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::Read;
 
+mod huffman_tree;
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -17,8 +19,8 @@ fn read_file(filepath: &str) -> Result<String> {
     Ok(contents)
 }
 
-fn calculate_character_frequency(input: &str) -> Result<HashMap<char, usize>> {
-    let frequency_map = input.chars().fold(HashMap::new(), |mut map, char| {
+fn calculate_character_frequency(input: &str) -> HashMap<char, usize> {
+    input.chars().fold(HashMap::new(), |mut map, char| {
         if map.contains_key(&char) {
             map.insert(char, map.get(&char).expect("Key not in hashmap") + 1);
         } else {
@@ -26,24 +28,53 @@ fn calculate_character_frequency(input: &str) -> Result<HashMap<char, usize>> {
         }
 
         map
-    });
-    Ok(frequency_map)
+    })
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let content = read_file(&cli.filepath)?;
-    let char_frequency = calculate_character_frequency(&content)?;
-
-    println!(
-        "t frequency: {frequency}",
-        frequency = char_frequency.get(&'t').expect("t not present in map")
-    );
-    println!(
-        "X frequency: {frequency}",
-        frequency = char_frequency.get(&'X').expect("X not present in map")
-    );
+    let char_frequency = calculate_character_frequency(&content);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_character_frequency() {
+        let char_freq = calculate_character_frequency("This is some input for character frequency");
+        assert_eq!(
+            char_freq,
+            HashMap::from([
+                ('T', 1),
+                ('h', 2),
+                ('i', 3),
+                ('s', 3),
+                (' ', 6),
+                ('o', 2),
+                ('m', 1),
+                ('e', 4),
+                ('n', 2),
+                ('p', 1),
+                ('u', 2),
+                ('t', 2),
+                ('f', 2),
+                ('r', 4),
+                ('c', 3),
+                ('a', 2),
+                ('q', 1),
+                ('y', 1)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_calculate_character_frequency_with_empty_input() {
+        let char_freq = calculate_character_frequency("");
+        assert_eq!(char_freq, HashMap::new());
+    }
 }
