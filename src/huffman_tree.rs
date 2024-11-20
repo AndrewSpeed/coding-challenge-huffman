@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 #[warn(unused_variables)]
-trait Node<'a> {
+trait Node {
     type Value;
     type Element;
 
@@ -13,68 +13,16 @@ trait Node<'a> {
     fn is_leaf(&self) -> bool;
 }
 
-trait BinaryTree {
-    type Node<'a>: Node<'a>
-    where
-        Self: 'a;
-
-    fn root(&self) -> Option<&Self::Node<'_>>;
-}
-
-#[derive(Debug)]
-pub struct HuffmanTree<'a> {
-    root: Option<<HuffmanTree<'a> as BinaryTree>::Node<'a>>,
-}
-
-impl HuffmanTree<'_> {
-    pub fn from_frequency_map(freq_map: HashMap<char, usize>) -> Self {
-        let mut ordered_elements: Vec<(char, usize)> = freq_map.into_iter().collect();
-        // ordered lowest to highest by value
-        ordered_elements.sort_by(|(_ak, av), (_bk, bv)| av.cmp(bv));
-
-        let root = None;
-        Self { root }
-    }
-}
-
-impl BinaryTree for HuffmanTree<'_> {
-    type Node<'a> = HuffmanTreeNode<'a> where Self: 'a;
-
-    fn root(&self) -> Option<&Self::Node<'_>> {
-        self.root.as_ref()
-    }
-}
-
-impl PartialEq for HuffmanTree<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.root.clone().into_iter().eq(other.root.clone())
-    }
-}
-
-impl Eq for HuffmanTree<'_> {}
-
-impl PartialOrd for HuffmanTree<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for HuffmanTree<'_> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.root.clone().into_iter().cmp(other.root.clone())
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct HuffmanTreeNode<'a> {
-    left: Option<&'a Self>,
-    right: Option<&'a Self>,
+#[derive(Debug, Default)]
+pub struct HuffmanTree {
+    left: Option<Box<Self>>,
+    right: Option<Box<Self>>,
     value: usize,
     element: Option<char>,
 }
 
-impl<'a> HuffmanTreeNode<'a> {
-    pub fn new_leaf_node(element: char, value: usize) -> Self {
+impl HuffmanTree {
+    fn new_leaf(element: char, value: usize) -> Self {
         Self {
             element: Some(element),
             value,
@@ -82,36 +30,76 @@ impl<'a> HuffmanTreeNode<'a> {
         }
     }
 
-    pub fn new_root_node(left: Option<&'a Self>, right: Option<&'a Self>) -> Self {
-        let value = left.unwrap_or(&HuffmanTreeNode::default()).value
-            + right.unwrap_or(&HuffmanTreeNode::default()).value;
+    fn new_root(left: Option<Self>, right: Option<Self>) -> Self {
         Self {
-            left,
-            right,
-            value,
+            left: match left {
+                Some(sub_tree) => Some(Box::new(sub_tree)),
+                None => None,
+            },
+            right: match right {
+                Some(sub_tree) => Some(Box::new(sub_tree)),
+                None => None,
+            },
             ..Self::default()
         }
     }
+
+    fn new_tree(first: Option<Self>, second: Option<Self>) -> Option<Self> {
+        match (first, second) {
+            (None, None) => None,
+            (Some(first_tree), None) => Some(first_tree),
+            (None, Some(second_tree)) => Some(second_tree),
+            (Some(first_tree), Some(second_tree)) => {
+                let tree = match first_tree.cmp(&second_tree) {
+                    Ordering::Less => Self::new_root(Some(first_tree), Some(second_tree)),
+                    Ordering::Equal => Self::new_root(Some(first_tree), Some(second_tree)),
+                    Ordering::Greater => Self::new_root(Some(second_tree), Some(first_tree)),
+                };
+
+                Some(tree)
+            }
+        }
+    }
+
+    pub fn from_frequency_map(freq_map: HashMap<char, usize>) -> Self {
+        let mut ordered_elements: Vec<(char, usize)> = freq_map.into_iter().collect();
+
+        // ordered lowest to highest by value
+        ordered_elements.sort_by(|(_ak, av), (_bk, bv)| av.cmp(bv));
+
+        let _ordered_leaf_nodes: Vec<HuffmanTree> = ordered_elements
+            .iter()
+            .map(|(element, value)| HuffmanTree::new_leaf(*element, *value))
+            .collect();
+
+        Self::default()
+    }
 }
 
-impl Node<'_> for HuffmanTreeNode<'_> {
-    type Value = usize;
+impl Node for HuffmanTree {
     type Element = char;
+    type Value = usize;
 
     fn left(&self) -> Option<&Self> {
-        self.left
+        self.left.as_deref()
     }
 
     fn right(&self) -> Option<&Self> {
-        self.right
-    }
-
-    fn value(&self) -> &Self::Value {
-        &self.value
+        self.right.as_deref()
     }
 
     fn element(&self) -> Option<&Self::Element> {
-        self.element.as_ref()
+        None
+    }
+
+    fn value(&self) -> &Self::Value {
+        if self.is_leaf() {
+            &self.value
+        } else {
+            let default_value = Some(Box::new(Self::default()));
+            &(self.left.or(default_value).unwrap().value()
+                + self.right.or(default_value).unwrap().value())
+        }
     }
 
     fn is_leaf(&self) -> bool {
@@ -119,21 +107,21 @@ impl Node<'_> for HuffmanTreeNode<'_> {
     }
 }
 
-impl PartialEq for HuffmanTreeNode<'_> {
+impl PartialEq for HuffmanTree {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }
 }
 
-impl Eq for HuffmanTreeNode<'_> {}
+impl Eq for HuffmanTree {}
 
-impl PartialOrd for HuffmanTreeNode<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl PartialOrd for HuffmanTree {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for HuffmanTreeNode<'_> {
+impl Ord for HuffmanTree {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.value < other.value {
             Ordering::Greater
@@ -150,6 +138,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_from_nodes_with_single_leaf() {
+        let node_1 = HuffmanTree::new_leaf('a', 5);
+        let tree = HuffmanTree::new_tree(Some(node_1), None).expect("Single node tree");
+
+        assert_eq!(tree, HuffmanTree::new_leaf('a', 5));
+        assert_eq!(tree.value, 5);
+    }
+
+    #[test]
+    fn test_from_nodes_for_two_leaf_nodes() {
+        let node_1 = HuffmanTree::new_leaf('a', 5);
+        let node_2 = HuffmanTree::new_leaf('z', 26);
+        let tree = HuffmanTree::new_tree(Some(node_1), Some(node_2)).expect("Two leaf tree");
+
+        assert_eq!(
+            tree,
+            HuffmanTree::new_root(
+                Some(HuffmanTree::new_leaf('a', 5)),
+                Some(HuffmanTree::new_leaf('z', 26))
+            )
+        );
+        assert_eq!(tree.value, 31);
+    }
+
+    #[test]
     fn test_huffman_tree_from_frequency_map() {
         let map: HashMap<char, usize> = HashMap::from([
             ('c', 32),
@@ -162,24 +175,22 @@ mod tests {
             ('z', 2),
         ]);
 
-        let e_node = HuffmanTreeNode::new_leaf_node('e', 120);
-        let d_node = HuffmanTreeNode::new_leaf_node('d', 42);
-        let l_node = HuffmanTreeNode::new_leaf_node('l', 42);
-        let u_node = HuffmanTreeNode::new_leaf_node('u', 37);
-        let c_node = HuffmanTreeNode::new_leaf_node('c', 32);
-        let m_node = HuffmanTreeNode::new_leaf_node('m', 24);
-        let k_node = HuffmanTreeNode::new_leaf_node('k', 7);
-        let z_node = HuffmanTreeNode::new_leaf_node('z', 2);
+        let e_node = HuffmanTree::new_leaf('e', 120);
+        let d_node = HuffmanTree::new_leaf('d', 42);
+        let l_node = HuffmanTree::new_leaf('l', 42);
+        let u_node = HuffmanTree::new_leaf('u', 37);
+        let c_node = HuffmanTree::new_leaf('c', 32);
+        let m_node = HuffmanTree::new_leaf('m', 24);
+        let k_node = HuffmanTree::new_leaf('k', 7);
+        let z_node = HuffmanTree::new_leaf('z', 2);
 
-        let k_z_root = HuffmanTreeNode::new_root_node(Some(&z_node), Some(&k_node));
-        let m_k_z_root = HuffmanTreeNode::new_root_node(Some(&k_z_root), Some(&m_node));
-        let c_m_k_z_root = HuffmanTreeNode::new_root_node(Some(&c_node), Some(&m_k_z_root));
-        let l_c_m_k_z_root = HuffmanTreeNode::new_root_node(Some(&l_node), Some(&c_m_k_z_root));
-        let u_d_root = HuffmanTreeNode::new_root_node(Some(&u_node), Some(&d_node));
-        let u_d_l_c_m_z_k_root =
-            HuffmanTreeNode::new_root_node(Some(&u_d_root), Some(&l_c_m_k_z_root));
-        let root = HuffmanTreeNode::new_root_node(Some(&e_node), Some(&u_d_l_c_m_z_k_root));
-        let expected_tree = HuffmanTree { root: Some(root) };
+        let k_z_root = HuffmanTree::new_root(Some(z_node), Some(k_node));
+        let m_k_z_root = HuffmanTree::new_root(Some(k_z_root), Some(m_node));
+        let c_m_k_z_root = HuffmanTree::new_root(Some(c_node), Some(m_k_z_root));
+        let l_c_m_k_z_root = HuffmanTree::new_root(Some(l_node), Some(c_m_k_z_root));
+        let u_d_root = HuffmanTree::new_root(Some(u_node), Some(d_node));
+        let u_d_l_c_m_z_k_root = HuffmanTree::new_root(Some(u_d_root), Some(l_c_m_k_z_root));
+        let expected_tree = HuffmanTree::new_root(Some(e_node), Some(u_d_l_c_m_z_k_root));
 
         let tree = HuffmanTree::from_frequency_map(map);
 
