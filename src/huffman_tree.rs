@@ -1,14 +1,12 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-#[warn(unused_variables)]
 trait Node {
-    type Value;
     type Element;
 
     fn left(&self) -> Option<&Self>;
     fn right(&self) -> Option<&Self>;
-    fn value(&self) -> &Self::Value;
+    fn value(&self) -> usize;
     fn element(&self) -> Option<&Self::Element>;
     fn is_leaf(&self) -> bool;
 }
@@ -17,7 +15,7 @@ trait Node {
 pub struct HuffmanTree {
     left: Option<Box<Self>>,
     right: Option<Box<Self>>,
-    value: usize,
+    value: Option<usize>,
     element: Option<char>,
 }
 
@@ -25,22 +23,17 @@ impl HuffmanTree {
     fn new_leaf(element: char, value: usize) -> Self {
         Self {
             element: Some(element),
-            value,
+            value: Some(value),
             ..Self::default()
         }
     }
 
     fn new_root(left: Option<Self>, right: Option<Self>) -> Self {
         Self {
-            left: match left {
-                Some(sub_tree) => Some(Box::new(sub_tree)),
-                None => None,
-            },
-            right: match right {
-                Some(sub_tree) => Some(Box::new(sub_tree)),
-                None => None,
-            },
-            ..Self::default()
+            left: left.map(Box::new),
+            right: right.map(Box::new),
+            element: None,
+            value: None,
         }
     }
 
@@ -78,7 +71,6 @@ impl HuffmanTree {
 
 impl Node for HuffmanTree {
     type Element = char;
-    type Value = usize;
 
     fn left(&self) -> Option<&Self> {
         self.left.as_deref()
@@ -92,13 +84,18 @@ impl Node for HuffmanTree {
         None
     }
 
-    fn value(&self) -> &Self::Value {
-        if self.is_leaf() {
-            &self.value
+    fn value(&self) -> usize {
+        if self.value.is_some() {
+            self.value.unwrap()
         } else {
-            let default_value = Some(Box::new(Self::default()));
-            &(self.left.or(default_value).unwrap().value()
-                + self.right.or(default_value).unwrap().value())
+            match (self.left.as_ref(), self.right.as_ref()) {
+                (None, None) => 0,
+                (Some(left_subtree), None) => left_subtree.value(),
+                (None, Some(right_subtree)) => right_subtree.value(),
+                (Some(left_subtree), Some(right_subtree)) => {
+                    left_subtree.value() + right_subtree.value()
+                }
+            }
         }
     }
 
@@ -123,13 +120,7 @@ impl PartialOrd for HuffmanTree {
 
 impl Ord for HuffmanTree {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if self.value < other.value {
-            Ordering::Greater
-        } else if self.value == other.value {
-            Ordering::Equal
-        } else {
-            Ordering::Less
-        }
+        self.value.cmp(&other.value)
     }
 }
 
@@ -137,17 +128,27 @@ impl Ord for HuffmanTree {
 mod tests {
     use super::*;
 
+    // value()
     #[test]
-    fn test_from_nodes_with_single_leaf() {
+    fn test_value_with_single_node_tree() {
+        let node_1 = HuffmanTree::new_leaf('a', 5);
+        let tree = HuffmanTree::new_root(Some(node_1), None);
+
+        assert_eq!(tree.value(), 5);
+    }
+
+    // new_tree()
+    #[test]
+    fn test_new_tree_with_single_leaf() {
         let node_1 = HuffmanTree::new_leaf('a', 5);
         let tree = HuffmanTree::new_tree(Some(node_1), None).expect("Single node tree");
 
         assert_eq!(tree, HuffmanTree::new_leaf('a', 5));
-        assert_eq!(tree.value, 5);
+        assert_eq!(tree.value(), 5);
     }
 
     #[test]
-    fn test_from_nodes_for_two_leaf_nodes() {
+    fn test_new_tree_for_two_leaf_nodes() {
         let node_1 = HuffmanTree::new_leaf('a', 5);
         let node_2 = HuffmanTree::new_leaf('z', 26);
         let tree = HuffmanTree::new_tree(Some(node_1), Some(node_2)).expect("Two leaf tree");
@@ -159,7 +160,7 @@ mod tests {
                 Some(HuffmanTree::new_leaf('z', 26))
             )
         );
-        assert_eq!(tree.value, 31);
+        assert_eq!(tree.value(), 31);
     }
 
     #[test]
