@@ -1,3 +1,4 @@
+use crate::huffman_tree::HuffmanTree;
 use anyhow::Result;
 use clap::Parser;
 use std::collections::HashMap;
@@ -35,7 +36,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let content = read_file(&cli.filepath)?;
-    let _char_frequency = calculate_character_frequency(&content);
+    let char_frequency = calculate_character_frequency(&content);
+    let _tree = HuffmanTree::from_frequency_map(char_frequency);
 
     Ok(())
 }
