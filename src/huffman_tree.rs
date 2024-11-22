@@ -4,10 +4,7 @@ use std::collections::HashMap;
 trait Node {
     type Element;
 
-    fn left(&self) -> Option<&Self>;
-    fn right(&self) -> Option<&Self>;
-    fn value(&self) -> usize;
-    fn element(&self) -> Option<&Self::Element>;
+    fn weight(&self) -> usize;
     fn is_leaf(&self) -> bool;
 }
 
@@ -60,40 +57,70 @@ impl HuffmanTree {
         // ordered lowest to highest by value
         ordered_elements.sort_by(|(_ak, av), (_bk, bv)| av.cmp(bv));
 
-        let _ordered_leaf_nodes: Vec<HuffmanTree> = ordered_elements
+        ordered_elements
             .iter()
             .map(|(element, value)| HuffmanTree::new_leaf(*element, *value))
-            .collect();
+            .reduce(|tree, element| {
+                Self::new_tree(Some(tree), Some(element)).expect("New tree from frequency mapping")
+            })
+            .expect("Reducing nodes into tree")
+    }
 
-        Self::default()
+    pub fn prefix_codes(&self, parent_prefix: Option<&str>) -> HashMap<char, String> {
+        let mut map = HashMap::new();
+
+        match self.is_leaf() {
+            true => {
+                map.insert(
+                    self.element.expect("Accessing element on leaf node"),
+                    parent_prefix.unwrap().to_string(),
+                );
+                map
+            }
+            false => match (self.left.as_ref(), self.right.as_ref()) {
+                (None, None) => map,
+                (Some(left_subtree), None) => {
+                    let left_subtree_prefixes = &(parent_prefix.unwrap_or("").to_owned() + "0");
+                    map.extend(left_subtree.prefix_codes(Some(left_subtree_prefixes)));
+                    map
+                }
+                (None, Some(right_subtree)) => {
+                    map.extend(
+                        right_subtree
+                            .prefix_codes(Some(&(parent_prefix.unwrap_or("").to_owned() + "1"))),
+                    );
+                    map
+                }
+                (Some(left_subtree), Some(right_subtree)) => {
+                    map.extend(
+                        left_subtree
+                            .prefix_codes(Some(&(parent_prefix.unwrap_or("").to_owned() + "0"))),
+                    );
+                    map.extend(
+                        right_subtree
+                            .prefix_codes(Some(&(parent_prefix.unwrap_or("").to_owned() + "1"))),
+                    );
+
+                    map
+                }
+            },
+        }
     }
 }
 
 impl Node for HuffmanTree {
     type Element = char;
 
-    fn left(&self) -> Option<&Self> {
-        self.left.as_deref()
-    }
-
-    fn right(&self) -> Option<&Self> {
-        self.right.as_deref()
-    }
-
-    fn element(&self) -> Option<&Self::Element> {
-        None
-    }
-
-    fn value(&self) -> usize {
+    fn weight(&self) -> usize {
         if self.value.is_some() {
             self.value.unwrap()
         } else {
             match (self.left.as_ref(), self.right.as_ref()) {
                 (None, None) => 0,
-                (Some(left_subtree), None) => left_subtree.value(),
-                (None, Some(right_subtree)) => right_subtree.value(),
+                (Some(left_subtree), None) => left_subtree.weight(),
+                (None, Some(right_subtree)) => right_subtree.weight(),
                 (Some(left_subtree), Some(right_subtree)) => {
-                    left_subtree.value() + right_subtree.value()
+                    left_subtree.weight() + right_subtree.weight()
                 }
             }
         }
@@ -106,7 +133,7 @@ impl Node for HuffmanTree {
 
 impl PartialEq for HuffmanTree {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
+        self.weight() == other.weight()
     }
 }
 
@@ -120,7 +147,7 @@ impl PartialOrd for HuffmanTree {
 
 impl Ord for HuffmanTree {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.value.cmp(&other.value)
+        self.weight().cmp(&other.weight())
     }
 }
 
@@ -134,7 +161,16 @@ mod tests {
         let node_1 = HuffmanTree::new_leaf('a', 5);
         let tree = HuffmanTree::new_root(Some(node_1), None);
 
-        assert_eq!(tree.value(), 5);
+        assert_eq!(tree.weight(), 5);
+    }
+
+    #[test]
+    fn test_value_for_multi_node_tree() {
+        let leaf_1 = HuffmanTree::new_leaf('b', 20);
+        let leaf_2 = HuffmanTree::new_leaf('g', 32);
+        let tree = HuffmanTree::new_root(Some(leaf_1), Some(leaf_2));
+
+        assert_eq!(tree.weight(), 52);
     }
 
     // new_tree()
@@ -144,7 +180,7 @@ mod tests {
         let tree = HuffmanTree::new_tree(Some(node_1), None).expect("Single node tree");
 
         assert_eq!(tree, HuffmanTree::new_leaf('a', 5));
-        assert_eq!(tree.value(), 5);
+        assert_eq!(tree.weight(), 5);
     }
 
     #[test]
@@ -160,9 +196,10 @@ mod tests {
                 Some(HuffmanTree::new_leaf('z', 26))
             )
         );
-        assert_eq!(tree.value(), 31);
+        assert_eq!(tree.weight(), 31);
     }
 
+    // from_frequency_map
     #[test]
     fn test_huffman_tree_from_frequency_map() {
         let map: HashMap<char, usize> = HashMap::from([
@@ -196,5 +233,34 @@ mod tests {
         let tree = HuffmanTree::from_frequency_map(map);
 
         assert_eq!(expected_tree, tree);
+    }
+
+    // prefix_codes
+    #[test]
+    fn test_huffman_tree_prefix_codes() {
+        let map: HashMap<char, usize> = HashMap::from([
+            ('c', 32),
+            ('d', 42),
+            ('e', 120),
+            ('k', 7),
+            ('l', 42),
+            ('m', 24),
+            ('u', 37),
+            ('z', 2),
+        ]);
+        let tree = HuffmanTree::from_frequency_map(map);
+
+        let expected_prefix_codes: HashMap<char, String> = HashMap::from([
+            ('e', "0".to_string()),
+            ('u', "100".to_string()),
+            ('d', "101".to_string()),
+            ('l', "110".to_string()),
+            ('c', "1110".to_string()),
+            ('m', "11111".to_string()),
+            ('z', "111100".to_string()),
+            ('k', "111101".to_string()),
+        ]);
+
+        assert_eq!(tree.prefix_codes(None), expected_prefix_codes);
     }
 }
