@@ -37,7 +37,8 @@ fn main() -> Result<()> {
 
     let content = read_file(&cli.filepath)?;
     let char_frequency = calculate_character_frequency(&content);
-    let _tree = HuffmanTree::from_frequency_map(char_frequency);
+    let frequencies = char_frequency.into_iter().collect::<Vec<(char, usize)>>();
+    let _tree = HuffmanTree::from_frequencies(frequencies);
 
     Ok(())
 }
