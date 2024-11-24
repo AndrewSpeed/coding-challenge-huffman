@@ -55,9 +55,21 @@ impl HuffmanTree {
         // ordered lowest to highest by value
         frequencies.sort_by(|(_ak, av), (_bk, bv)| av.cmp(bv));
 
-        let _ = frequencies
+        let _leaves: Vec<HuffmanTree> = frequencies
             .iter()
-            .map(|(element, value)| HuffmanTree::new_leaf(*element, *value));
+            .map(|(element, value)| HuffmanTree::new_leaf(*element, *value))
+            .collect();
+
+        while _leaves.len() > 1 {
+            let subtree_1 = _leaves
+                .first()
+                .expect("Grabbing first element of list of length > 1");
+            let subtree_2 = _leaves
+                .get(1)
+                .expect("Grabbing second element of list of length > 1");
+
+            let new_tree = Self::new_tree(Some(subtree_1), Some(subtree_2));
+        }
 
         // need to iterate over loop, combining first 2 leaves into a tree, insert it back into
         // correct position for order, then continue iteration on next 2 nodes until we have our
